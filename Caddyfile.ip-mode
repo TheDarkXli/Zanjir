@@ -1,5 +1,6 @@
 # Zanjir - Caddy Configuration for IP-only mode
-# Using Element's own nginx instead of serving files directly
+# Self-signed HTTPS for IP addresses
+# WARNING: Browser will show security warning - click "Advanced" > "Proceed"
 
 {
     auto_https off
@@ -33,11 +34,14 @@
         reverse_proxy dendrite:8008
     }
 
-    # Element Web - proxy to element container's nginx
+    # Element Web - serve static files
     handle {
-        reverse_proxy element:8080
+        root * /srv/element
+        file_server
+        try_files {path} /index.html
     }
 
+    # Security headers
     header {
         X-Frame-Options SAMEORIGIN
         X-Content-Type-Options nosniff
@@ -51,6 +55,7 @@
     }
 }
 
+# Redirect HTTP to HTTPS
 :80 {
     redir https://{host}{uri} permanent
 }
