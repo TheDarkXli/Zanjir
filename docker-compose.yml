@@ -85,6 +85,7 @@ services:
   element-copy:
     image: vectorim/element-web:latest
     container_name: zanjir-element-copy
+    user: root
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
