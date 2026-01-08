@@ -27,11 +27,7 @@
 
     # Matrix API
     handle /_matrix/* {
-        reverse_proxy dendrite:8008
-    }
-
-    handle /_dendrite/* {
-        reverse_proxy dendrite:8008
+        reverse_proxy synapse:8008
     }
 
     # Mobile guide - serve our custom page directly

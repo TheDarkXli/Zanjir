@@ -23,7 +23,7 @@
 
 زنجیر یک بسته‌بندی آماده از پروتکل Matrix هست که برای شرایط ایران بهینه شده. هدف اینه که بتونی روی یه VPS اوبونتوی ایرانی، سرور پیام‌رسان شخصی خودت رو زیر ۵ دقیقه بالا بیاری.
 
-این پروژه از Dendrite (نسخه سبک Matrix) استفاده میکنه که برای سرورهای کم‌منابع مناسبه.
+این پروژه از Synapse (سرور رسمی Matrix) استفاده میکنه که برای پایداری و سازگاری با کلاینت‌های جدید مناسبه.
 
 ### چی داره؟
 
@@ -87,13 +87,10 @@ sudo bash install.sh
 ثبت‌نام باز نیست (که سرور اسپم نشه). یوزر رو دستی میسازی:
 
 ```bash
-docker exec -it zanjir-dendrite /usr/bin/create-account \
-    --config /etc/dendrite/dendrite.yaml \
-    --username نام_کاربری \
-    --admin
+bash scripts/create-user.sh --admin
 ```
 
-پسورد رو وارد کن و تمام.
+پسورد رو وارد کن و تمام. برای ساخت یوزر معمولی، بدون `--admin` اجرا کن.
 
 ---
 
@@ -113,6 +110,26 @@ docker exec -it zanjir-dendrite /usr/bin/create-account \
 ### ساخت گروه
 
 دکمه + رو بزن، اتاق جدید، اسم بذار و تنظیمات پرایوسی رو انتخاب کن.
+
+---
+
+## کلاینت‌های مدرن و Sliding Sync
+
+پروکسی قدیمی Sliding Sync (MSC3575) آرشیو شده و جای خودش رو به Simplified Sliding Sync (MSC4186) داده. زنجیر از پشتیبانی بومی Synapse برای MSC4186 استفاده می‌کنه و نیازی به پروکسی جداگانه نداره.
+
+منابع:
+- آرشیو شدن پروکسی: https://github.com/matrix-org/sliding-sync
+- خبر رسمی مهاجرت: https://matrix.org/blog/2024/11/14/moving-to-native-sliding-sync/
+- سینک ساده (MSC4186) در Synapse: https://2024.matrix.org/documents/talk_slides/LAB4%202024-09-21%2010_00%20Ivan%20Enderlin%20-%20Simplified%20Sliding%20Sync.pdf
+- اشاره کلاینت‌ها به قابلیت `org.matrix.simplified_msc3575`: https://matrix-org.github.io/matrix-rust-sdk/src/matrix_sdk/sliding_sync/client.rs.html
+
+برای بررسی پشتیبانی:
+
+```bash
+curl -sS https://<دامنه_یا_IP>/_matrix/client/versions | jq .
+```
+
+باید توی خروجی `unstable_features` مقدار `org.matrix.simplified_msc3575` رو ببینی.
 
 ---
 
@@ -268,6 +285,18 @@ sudo ufw allow 443
 
 یوزر نساختی. بخش ساخت کاربر رو بخون.
 
+### سیناپس بالا نمیاد (PermissionError برای signing.key)
+
+اگه توی لاگ‌های Synapse این خط رو دیدی:
+`PermissionError: [Errno 13] Permission denied: '/data/signing.key'`
+
+یعنی Synapse به پوشه دیتا دسترسی نوشتن نداره. توی زنجیر جدید این مشکل با سرویس `synapse-init` حل میشه که قبل از اجرا دسترسی‌ها رو درست میکنه. اگه از نسخه قدیمی آپدیت کردی:
+
+```bash
+docker compose run --rm synapse-init
+docker compose restart synapse
+```
+
 ### کندی یا قطعی
 
 - مطمئن شو سرور ایرانیه و فیلتر نیست
@@ -286,10 +315,11 @@ zanjir/
 ├── config/
 │   ├── element-config.json # کانفیگ کلاینت
 │   └── welcome.html        # صفحه اول
-├── dendrite/
-│   └── dendrite.yaml       # کانفیگ سرور
+├── synapse/
+│   ├── homeserver.yaml     # کانفیگ Synapse
+│   └── log.config          # لاگ Synapse
 └── scripts/
-    └── generate-keys.sh    # تولید کلید
+    └── create-user.sh      # ساخت کاربر
 ```
 
 ---
@@ -304,10 +334,10 @@ zanjir/
 
 ```bash
 # دیتابیس
-docker exec zanjir-postgres pg_dump -U dendrite dendrite > backup.sql
+docker exec zanjir-postgres pg_dump -U synapse synapse > backup.sql
 
 # فایل‌ها
-tar -czvf zanjir-backup.tar.gz dendrite/ config/ .env
+tar -czvf zanjir-backup.tar.gz synapse/ config/ .env
 ```
 
 ---
@@ -317,13 +347,9 @@ tar -czvf zanjir-backup.tar.gz dendrite/ config/ .env
 - **Federation غیرفعاله** - این سرور به سرورهای Matrix دیگه وصل نمیشه. دلیلش اینه که سرورهای matrix.org از ایران فیلتر هستن.
 - **Identity Server نداره** - سرویس‌های تایید ایمیل و شماره تلفن matrix.org هم فیلتر هستن، پس غیرفعال شدن.
 - **کاملا مستقل** - همه چیز روی سرور خودت اجرا میشه.
+- **بدون وابستگی به matrix.org** - توی Synapse گزینه `trusted_key_servers: []` ست شده تا هیچ Key Server خارجی استفاده نشه. (مستندات: https://matrix-org.github.io/synapse/latest/usage/configuration/config_documentation.html و توضیح رفتار: https://github.com/matrix-org/synapse/issues/7047)
 
-اگه بعدا خواستی Federation رو فعال کنی (مثلا سرور رو به خارج بردی)، توی `dendrite/dendrite.yaml` این خط رو عوض کن:
-
-```yaml
-global:
-  disable_federation: false
-```
+اگه بعدا خواستی Federation رو فعال کنی (مثلا سرور رو به خارج بردی)، باید `federation_enabled: true` رو داخل `synapse/homeserver.yaml` ست کنی و بعد سرویس‌ها رو ریستارت کنی.
 
 ---
 
@@ -336,7 +362,7 @@ Apache 2.0
 ## کردیت
 
 - [Matrix.org](https://matrix.org)
-- [Dendrite](https://github.com/matrix-org/dendrite)
+- [Synapse](https://github.com/matrix-org/synapse)
 - [Element](https://element.io)
 - [Caddy](https://caddyserver.com)
 
