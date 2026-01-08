@@ -29,11 +29,12 @@ normalize_line_endings() {
     fi
 
     local files=(
-        "scripts/generate-keys.sh"
+        "scripts/create-user.sh"
         "docker-compose.yml"
         "Caddyfile"
         "Caddyfile.ip-mode"
-        "dendrite/dendrite.yaml"
+        "synapse/homeserver.yaml"
+        "synapse/log.config"
         "config/element-config.json"
     )
 
@@ -319,6 +320,8 @@ install_docker_compose() {
 
 generate_secrets() {
     log_info "Generating security keys..."
+    POSTGRES_USER="synapse"
+    POSTGRES_DB="synapse"
     POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
     REGISTRATION_SECRET=$(openssl rand -base64 32 | tr -d '/+=')
     log_success "Keys generated."
@@ -332,12 +335,12 @@ SERVER_ADDRESS=${SERVER_ADDRESS}
 PROTOCOL=${PROTOCOL}
 IP_MODE=${IP_MODE}
 REGISTRATION_SHARED_SECRET=${REGISTRATION_SECRET}
-POSTGRES_USER=dendrite
+POSTGRES_USER=${POSTGRES_USER}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_DB=dendrite
+POSTGRES_DB=${POSTGRES_DB}
 LETSENCRYPT_EMAIL=${ADMIN_EMAIL}
 POSTGRES_IMAGE=postgres:15-alpine
-DENDRITE_IMAGE=matrixdotorg/dendrite-monolith:latest
+SYNAPSE_IMAGE=matrixdotorg/synapse:v1.114.0
 ELEMENT_IMAGE=vectorim/element-web:v1.11.50
 ELEMENT_COPY_IMAGE=vectorim/element-web:v1.11.50
 CADDY_IMAGE=caddy:2-alpine
@@ -371,53 +374,20 @@ update_element_config() {
     log_success "Element configured."
 }
 
-update_dendrite_config() {
-    log_info "Configuring Dendrite..."
+update_synapse_config() {
+    log_info "Configuring Synapse..."
     
     # Reset config from git to ensure placeholders exist
-    git checkout -- dendrite/dendrite.yaml 2>/dev/null || true
+    git checkout -- synapse/homeserver.yaml synapse/log.config 2>/dev/null || true
     
     # Now replace placeholders
-    sed -i "s/\${DOMAIN}/${SERVER_ADDRESS}/g" dendrite/dendrite.yaml
-    sed -i "s/\${POSTGRES_USER}/dendrite/g" dendrite/dendrite.yaml
-    sed -i "s/\${POSTGRES_PASSWORD}/${POSTGRES_PASSWORD}/g" dendrite/dendrite.yaml
-    sed -i "s/\${POSTGRES_DB}/dendrite/g" dendrite/dendrite.yaml
-    sed -i "s/\${REGISTRATION_SHARED_SECRET}/${REGISTRATION_SECRET}/g" dendrite/dendrite.yaml
-    
-    # IP mode uses port 443 with self-signed SSL
-    if [ "$IP_MODE" = true ]; then
-        sed -i "s|:443|:443|g" dendrite/dendrite.yaml
-    fi
-    log_success "Dendrite configured."
-}
+    sed -i "s/\${DOMAIN}/${SERVER_ADDRESS}/g" synapse/homeserver.yaml
+    sed -i "s/\${POSTGRES_USER}/${POSTGRES_USER}/g" synapse/homeserver.yaml
+    sed -i "s/\${POSTGRES_PASSWORD}/${POSTGRES_PASSWORD}/g" synapse/homeserver.yaml
+    sed -i "s/\${POSTGRES_DB}/${POSTGRES_DB}/g" synapse/homeserver.yaml
+    sed -i "s/\${REGISTRATION_SHARED_SECRET}/${REGISTRATION_SECRET}/g" synapse/homeserver.yaml
 
-generate_matrix_key() {
-    log_info "Generating Matrix signing key..."
-    if [ ! -f "dendrite/matrix_key.pem" ]; then
-        load_env_if_exists
-        ensure_docker_registry_access
-        local dendrite_image="${DENDRITE_IMAGE:-matrixdotorg/dendrite-monolith:latest}"
-
-        log_info "Pulling Dendrite image (this may take a while)..."
-        docker_pull_with_mirror_fallback "$dendrite_image"
-        
-        log_info "Running key generation..."
-        docker run --rm \
-            --entrypoint /usr/bin/generate-keys \
-            -v "$(pwd)/dendrite:/etc/dendrite" \
-            "$dendrite_image" \
-            --private-key /etc/dendrite/matrix_key.pem
-        
-        if [ -f "dendrite/matrix_key.pem" ]; then
-            chmod 600 dendrite/matrix_key.pem
-            log_success "Matrix key generated."
-        else
-            log_error "Failed to generate Matrix key!"
-            exit 1
-        fi
-    else
-        log_warning "Matrix key already exists."
-    fi
+    log_success "Synapse configured."
 }
 
 start_services() {
@@ -448,7 +418,7 @@ start_services() {
     log_info "Waiting for PostgreSQL to be ready..."
     sleep 10
     
-    docker compose up -d dendrite element caddy
+    docker compose up -d synapse element caddy
     
     log_info "Waiting for services to start..."
     sleep 5
@@ -478,10 +448,7 @@ print_success() {
     echo ""
     echo "To create an admin user:"
     echo ""
-    echo "docker exec -it zanjir-dendrite /usr/bin/create-account \\"
-    echo "    --config /etc/dendrite/dendrite.yaml \\"
-    echo "    --username YOUR_USERNAME \\"
-    echo "    --admin"
+    echo "bash scripts/create-user.sh --admin"
     echo ""
     echo "Registration secret (for API): ${REGISTRATION_SECRET}"
     echo ""
@@ -501,8 +468,7 @@ generate_secrets
 create_env_file
 setup_caddyfile
 update_element_config
-update_dendrite_config
-generate_matrix_key
+update_synapse_config
 start_services
 check_services
 print_success
