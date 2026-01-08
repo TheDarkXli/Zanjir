@@ -30,6 +30,7 @@ normalize_line_endings() {
 
     local files=(
         "scripts/generate-keys.sh"
+        "scripts/init-postgres.sh"
         "docker-compose.yml"
         "Caddyfile"
         "Caddyfile.ip-mode"
@@ -321,6 +322,7 @@ generate_secrets() {
     log_info "Generating security keys..."
     POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
     REGISTRATION_SECRET=$(openssl rand -base64 32 | tr -d '/+=')
+    SLIDING_SYNC_SECRET=$(openssl rand -hex 32)
     log_success "Keys generated."
 }
 
@@ -341,6 +343,10 @@ DENDRITE_IMAGE=matrixdotorg/dendrite-monolith:latest
 ELEMENT_IMAGE=vectorim/element-web:v1.11.50
 ELEMENT_COPY_IMAGE=vectorim/element-web:v1.11.50
 CADDY_IMAGE=caddy:2-alpine
+SLIDING_SYNC_IMAGE=ghcr.io/matrix-org/sliding-sync:latest
+SLIDING_SYNC_DB_NAME=syncv3
+SLIDING_SYNC_SECRET=${SLIDING_SYNC_SECRET}
+SLIDING_SYNC_SERVER=http://dendrite:8008
 EOF
     chmod 600 .env
     log_success ".env file created."
@@ -448,7 +454,7 @@ start_services() {
     log_info "Waiting for PostgreSQL to be ready..."
     sleep 10
     
-    docker compose up -d dendrite element caddy
+    docker compose up -d dendrite sliding-sync element caddy
     
     log_info "Waiting for services to start..."
     sleep 5
