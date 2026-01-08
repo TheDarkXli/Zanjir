@@ -48,6 +48,8 @@ normalize_line_endings() {
 
 reset_templates() {
     git checkout -- docker-compose.yml Caddyfile Caddyfile.ip-mode synapse/homeserver.yaml synapse/log.config scripts/create-user.sh config/element-config.json 2>/dev/null || true
+    rm -f Caddyfile.active docker-compose.override.yml
+    rm -rf dendrite
 }
 
 load_env_if_exists() {
