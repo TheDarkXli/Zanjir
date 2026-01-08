@@ -348,6 +348,8 @@ POSTGRES_DB=${POSTGRES_DB}
 LETSENCRYPT_EMAIL=${ADMIN_EMAIL}
 POSTGRES_IMAGE=postgres:15-alpine
 SYNAPSE_IMAGE=matrixdotorg/synapse:v1.114.0
+SYNAPSE_UID=991
+SYNAPSE_GID=991
 ELEMENT_IMAGE=vectorim/element-web:v1.11.50
 ELEMENT_COPY_IMAGE=vectorim/element-web:v1.11.50
 CADDY_IMAGE=caddy:2-alpine
@@ -429,6 +431,9 @@ start_services() {
     log_info "Waiting for PostgreSQL to be ready..."
     sleep 10
     
+    log_info "Fixing Synapse data permissions..."
+    docker compose run --rm synapse-init
+    
     docker compose up -d synapse element caddy
     
     log_info "Waiting for services to start..."
@@ -467,6 +472,22 @@ print_success() {
     echo ""
 }
 
+smoke_test() {
+    log_info "Running Synapse smoke test..."
+    local url="https://${SERVER_ADDRESS}/_matrix/client/versions"
+    if ! curl -fsS "$url" >/dev/null; then
+        log_error "Synapse did not respond at ${url}"
+        log_error "Check: docker compose logs synapse"
+        exit 1
+    fi
+    if ! docker exec zanjir-caddy /bin/sh -c "wget -qO- http://synapse:8008/_matrix/client/versions >/dev/null" >/dev/null 2>&1; then
+        log_error "Caddy could not reach Synapse on the internal network."
+        log_error "Check: docker compose logs caddy"
+        exit 1
+    fi
+    log_success "Synapse is reachable."
+}
+
 # Main
 print_banner
 check_root
@@ -483,4 +504,5 @@ update_element_config
 update_synapse_config
 start_services
 check_services
+smoke_test
 print_success

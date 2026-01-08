@@ -285,6 +285,18 @@ sudo ufw allow 443
 
 یوزر نساختی. بخش ساخت کاربر رو بخون.
 
+### سیناپس بالا نمیاد (PermissionError برای signing.key)
+
+اگه توی لاگ‌های Synapse این خط رو دیدی:
+`PermissionError: [Errno 13] Permission denied: '/data/signing.key'`
+
+یعنی Synapse به پوشه دیتا دسترسی نوشتن نداره. توی زنجیر جدید این مشکل با سرویس `synapse-init` حل میشه که قبل از اجرا دسترسی‌ها رو درست میکنه. اگه از نسخه قدیمی آپدیت کردی:
+
+```bash
+docker compose run --rm synapse-init
+docker compose restart synapse
+```
+
 ### کندی یا قطعی
 
 - مطمئن شو سرور ایرانیه و فیلتر نیست
