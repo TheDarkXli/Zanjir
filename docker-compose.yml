@@ -1,8 +1,6 @@
 # Zanjir - Docker Compose Configuration
 # Self-hosted Matrix server with Synapse, Element Web, and Caddy
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:

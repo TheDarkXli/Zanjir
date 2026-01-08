@@ -46,6 +46,10 @@ normalize_line_endings() {
     done
 }
 
+reset_templates() {
+    git checkout -- docker-compose.yml Caddyfile Caddyfile.ip-mode synapse/homeserver.yaml synapse/log.config scripts/create-user.sh config/element-config.json 2>/dev/null || true
+}
+
 load_env_if_exists() {
     if [ -f ".env" ]; then
         set -a
@@ -465,6 +469,7 @@ print_success() {
 print_banner
 check_root
 normalize_line_endings
+reset_templates
 get_user_input
 install_docker
 install_docker_compose
