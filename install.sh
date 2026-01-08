@@ -328,6 +328,7 @@ generate_secrets() {
     POSTGRES_DB="synapse"
     POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=')
     REGISTRATION_SECRET=$(openssl rand -base64 32 | tr -d '/+=')
+    SLIDING_SYNC_SECRET=$(openssl rand -hex 32)
     log_success "Keys generated."
 }
 
@@ -348,6 +349,10 @@ SYNAPSE_IMAGE=matrixdotorg/synapse:v1.114.0
 ELEMENT_IMAGE=vectorim/element-web:v1.11.50
 ELEMENT_COPY_IMAGE=vectorim/element-web:v1.11.50
 CADDY_IMAGE=caddy:2-alpine
+SLIDING_SYNC_IMAGE=ghcr.io/matrix-org/sliding-sync:latest
+SLIDING_SYNC_DB_NAME=syncv3
+SLIDING_SYNC_SECRET=${SLIDING_SYNC_SECRET}
+SLIDING_SYNC_SERVER=http://dendrite:8008
 EOF
     chmod 600 .env
     log_success ".env file created."

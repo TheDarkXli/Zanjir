@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -e
+
+SLIDING_SYNC_DB_NAME="${SLIDING_SYNC_DB_NAME:-syncv3}"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-SQL
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '${SLIDING_SYNC_DB_NAME}') THEN
+    CREATE DATABASE ${SLIDING_SYNC_DB_NAME} OWNER ${POSTGRES_USER};
+  END IF;
+END
+$$;
+SQL
