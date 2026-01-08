@@ -22,7 +22,12 @@
     handle /.well-known/matrix/client {
         header Content-Type application/json
         header Access-Control-Allow-Origin *
-        respond `{"m.homeserver": {"base_url": "https://{$SERVER_ADDRESS}"}}`
+        respond `{"m.homeserver": {"base_url": "https://{$SERVER_ADDRESS}"}, "org.matrix.msc3575.proxy": {"url": "https://{$SERVER_ADDRESS}"}}`
+    }
+
+    # Sliding Sync (MSC3575)
+    handle /_matrix/client/unstable/org.matrix.msc3575/* {
+        reverse_proxy sliding-sync:8008
     }
 
     # Matrix API
