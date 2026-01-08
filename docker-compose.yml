@@ -1,5 +1,5 @@
 # Zanjir - Docker Compose Configuration
-# Self-hosted Matrix server with Dendrite, Element Web, and Caddy
+# Self-hosted Matrix server with Synapse, Element Web, and Caddy
 
 version: '3.8'
 
@@ -10,43 +10,37 @@ services:
     container_name: zanjir-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-dendrite}
+      POSTGRES_USER: ${POSTGRES_USER:-synapse}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-dendrite}
+      POSTGRES_DB: ${POSTGRES_DB:-synapse}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/01-init-sliding-sync.sh:ro
     networks:
       - zanjir-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dendrite}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapse}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Dendrite Matrix Homeserver
-  dendrite:
-    image: ${DENDRITE_IMAGE:-matrixdotorg/dendrite-monolith:latest}
-    container_name: zanjir-dendrite
+  # Synapse Matrix Homeserver
+  synapse:
+    image: ${SYNAPSE_IMAGE:-matrixdotorg/synapse:v1.114.0}
+    container_name: zanjir-synapse
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DOMAIN: ${DOMAIN}
-      POSTGRES_USER: ${POSTGRES_USER:-dendrite}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-dendrite}
-      REGISTRATION_SHARED_SECRET: ${REGISTRATION_SHARED_SECRET}
+      SYNAPSE_SERVER_NAME: ${DOMAIN}
+      SYNAPSE_REPORT_STATS: "no"
     volumes:
-      - ./dendrite/dendrite.yaml:/etc/dendrite/dendrite.yaml:ro
-      - ./dendrite/matrix_key.pem:/etc/dendrite/matrix_key.pem:ro
-      - dendrite-media:/var/dendrite/media
-      - dendrite-jetstream:/var/dendrite/jetstream
-      - dendrite-search:/var/dendrite/searchindex
+      - synapse-data:/data
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./synapse/log.config:/data/log.config:ro
     networks:
       - zanjir-network
-    command: --config /etc/dendrite/dendrite.yaml
 
   # Sliding Sync Proxy (MSC3575)
   sliding-sync:
@@ -98,7 +92,7 @@ services:
     networks:
       - zanjir-network
     depends_on:
-      - dendrite
+      - synapse
       - element
 
   # Utility container to copy Element Web files
@@ -132,12 +126,8 @@ networks:
 volumes:
   postgres-data:
     name: zanjir-postgres-data
-  dendrite-media:
-    name: zanjir-dendrite-media
-  dendrite-jetstream:
-    name: zanjir-dendrite-jetstream
-  dendrite-search:
-    name: zanjir-dendrite-search
+  synapse-data:
+    name: zanjir-synapse-data
   caddy-data:
     name: zanjir-caddy-data
   caddy-config:
